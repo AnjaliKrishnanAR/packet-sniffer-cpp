@@ -7,9 +7,24 @@
 #include <netinet/udp.h>
 #include <net/ethernet.h>
 #include <arpa/inet.h>
+#include <fstream>
+#include <sstream>
+#include <ctime>
+
 using namespace std;
 
 #define BUFFER_SIZE 65536
+
+//6)creating a global log file
+ofstream logfile;
+//6)timestamp
+string get_timestamp() {
+    time_t now = time(0);
+    struct tm* tm_info = localtime(&now);
+    char buffer[20];
+    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", tm_info);
+    return std::string(buffer);
+}
 
 //4)convert protcol to human understandable string
 string get_protocol(int protocol)
@@ -33,6 +48,7 @@ void process_packet(unsigned char* buffer, int size)
 	string protocol = get_protocol((int)ip->protocol);
 	if(protocol=="OTHER")return;
 	
+	//5)read the port number
 	int ip_header_length=ip->ihl * 4;
 	
 	unsigned char* transport = (unsigned char*) ip+ip_header_length;
@@ -51,14 +67,33 @@ void process_packet(unsigned char* buffer, int size)
 		dest_port = ntohs(udp->dest);
 	}
 	
+	string timestamp = get_timestamp();
+	ostringstream entry;
 	
-	cout << "Protocol: " << protocol<< "|" << "Source:  " << inet_ntoa(source) << ":"<< src_port << "|" 
-	<< "Desination: "  << inet_ntoa(dest) << ":" << dest_port << endl;
+	
+	entry<< "[" << timestamp << "]" 
+		<< "Protocol: " << protocol 
+		<< "|" << "Source:  " << inet_ntoa(source) 
+		<< ":"<< src_port << "|" 
+	<< "Desination: "  << inet_ntoa(dest) 
+	<< ":" << dest_port << endl;
+	
+	cout << entry. str()<<endl;
+	
+	if(logfile.is_open()){
+		logfile << entry.str() <<"\n";
+		logfile.flush();
+	}
 	
 }
 
 int main()
 {
+	logfile.open("capture.log", ios::out | ios::app);
+    	if (!logfile.is_open()) {
+        	std::cerr << "Failed to open log file." << std::endl;
+        	return 1;
+    	}
 	//1)create raw sockets
 	int sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
 	
